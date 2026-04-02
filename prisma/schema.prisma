@@ -1,0 +1,345 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// Enums
+enum PlayerLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  PROFESSIONAL
+}
+
+enum GroupRole {
+  OWNER
+  ADMIN
+  MODERATOR
+  MEMBER
+}
+
+enum BookingStatus {
+  OPEN
+  FULL
+  CANCELLED
+  COMPLETED
+}
+
+enum RSVPStatus {
+  ACCEPTED
+  DECLINED
+  TENTATIVE
+  NO_RESPONSE
+}
+
+enum MatchFormat {
+  SINGLES
+  DOUBLES
+}
+
+enum MatchStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum TournamentFormat {
+  ROUND_ROBIN
+  KNOCKOUT
+  GROUP_STAGE
+}
+
+enum TournamentStatus {
+  REGISTRATION_OPEN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum RecurrenceType {
+  ONCE
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+// Models
+model Player {
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  email           String    @unique
+  username        String    @unique
+  firstName       String?
+  lastName        String?
+  avatar          String?
+  bio             String?
+  level           PlayerLevel @default(INTERMEDIATE)
+  currentElo      Int       @default(1600)
+  wins            Int       @default(0)
+  losses          Int       @default(0)
+  matches         Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  groupMemberships GroupMember[]
+  bookingRsvps     BookingRSVP[]
+  matches          Match[]
+  tournaments      TournamentParticipant[]
+  eloHistory       EloHistory[]
+  notifications    Notification[]
+
+  @@index([userId])
+  @@index([email])
+  @@index([username])
+  @@index([currentElo])
+}
+
+model Group {
+  id              String    @id @default(cuid())
+  name            String
+  description     String?
+  avatar          String?
+  privacy         String    @default("PRIVATE") // PUBLIC, PRIVATE
+  maxMembers      Int       @default(50)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  members         GroupMember[]
+  bookings        Booking[]
+  matches         Match[]
+  tournaments     Tournament[]
+
+  @@index([name])
+  @@index([createdAt])
+}
+
+model GroupMember {
+  id              String    @id @default(cuid())
+  groupId         String
+  playerId        String
+  role            GroupRole @default(MEMBER)
+  joinedAt        DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  group           Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  player          Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, playerId])
+  @@index([groupId])
+  @@index([playerId])
+}
+
+model Venue {
+  id              String    @id @default(cuid())
+  name            String
+  address         String
+  city            String
+  state           String
+  postalCode      String
+  country         String
+  latitude        Float?
+  longitude       Float?
+  phoneNumber     String?
+  website         String?
+  courts          Int       @default(1)
+  amenities       String[]  @default([])
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  bookings        Booking[]
+  matches         Match[]
+
+  @@index([city])
+  @@index([name])
+}
+
+model Booking {
+  id              String    @id @default(cuid())
+  groupId         String?
+  venueId         String
+  title           String
+  description     String?
+  date            DateTime
+  time            DateTime
+  duration        Int       @default(60) // minutes
+  maxPlayers      Int       @default(4)
+  status          BookingStatus @default(OPEN)
+  recurrence      RecurrenceType @default(ONCE)
+  recurrenceEndDate DateTime?
+  createdByUserId String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  group           Group?    @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  venue           Venue     @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  rsvps           BookingRSVP[]
+  matches         Match[]
+
+  @@index([groupId])
+  @@index([venueId])
+  @@index([date])
+  @@index([status])
+}
+
+model BookingRSVP {
+  id              String    @id @default(cuid())
+  bookingId       String
+  playerId        String
+  status          RSVPStatus @default(NO_RESPONSE)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  booking         Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  player          Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([bookingId, playerId])
+  @@index([bookingId])
+  @@index([playerId])
+  @@index([status])
+}
+
+model Match {
+  id              String    @id @default(cuid())
+  bookingId       String?
+  groupId         String?
+  venueId         String
+  format          MatchFormat
+  status          MatchStatus @default(SCHEDULED)
+  scheduledAt     DateTime
+  startedAt       DateTime?
+  completedAt     DateTime?
+  player1Id       String
+  player2Id       String?
+  player3Id       String?
+  player4Id       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  booking         Booking?  @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  group           Group?    @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  venue           Venue     @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  player1         Player    @relation(fields: [player1Id], references: [id], onDelete: Cascade)
+  player2         Player?   @relation("player2Matches", fields: [player2Id], references: [id], onDelete: SetNull)
+  player3         Player?   @relation("player3Matches", fields: [player3Id], references: [id], onDelete: SetNull)
+  player4         Player?   @relation("player4Matches", fields: [player4Id], references: [id], onDelete: SetNull)
+  games           MatchGame[]
+
+  @@index([bookingId])
+  @@index([groupId])
+  @@index([venueId])
+  @@index([status])
+  @@index([scheduledAt])
+}
+
+model MatchGame {
+  id              String    @id @default(cuid())
+  matchId         String
+  gameNumber      Int
+  player1Score    Int
+  player2Score    Int?
+  player3Score    Int?
+  player4Score    Int?
+  winnerId        String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  match           Match     @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, gameNumber])
+  @@index([matchId])
+}
+
+model Tournament {
+  id              String    @id @default(cuid())
+  groupId         String
+  name            String
+  description     String?
+  format          TournamentFormat
+  status          TournamentStatus @default(REGISTRATION_OPEN)
+  startDate       DateTime
+  endDate         DateTime?
+  maxParticipants Int
+  entryFee        Int       @default(0)
+  createdByUserId String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  group           Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  participants    TournamentParticipant[]
+
+  @@index([groupId])
+  @@index([status])
+  @@index([startDate])
+}
+
+model TournamentParticipant {
+  id              String    @id @default(cuid())
+  tournamentId    String
+  playerId        String
+  position        Int?
+  points          Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  tournament      Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  player          Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, playerId])
+  @@index([tournamentId])
+  @@index([playerId])
+}
+
+model EloHistory {
+  id              String    @id @default(cuid())
+  playerId        String
+  matchId         String?
+  oldRating       Int
+  newRating       Int
+  change          Int
+  reason          String    // WIN, LOSS, ADJUSTMENT
+  createdAt       DateTime  @default(now())
+
+  // Relations
+  player          Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId])
+  @@index([createdAt])
+}
+
+model Notification {
+  id              String    @id @default(cuid())
+  playerId        String
+  type            String    // BOOKING_INVITATION, MATCH_RESULT, TOURNAMENT_INVITE, etc
+  title           String
+  message         String
+  relatedId       String?   // bookingId, matchId, tournamentId, etc
+  read            Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  player          Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId])
+  @@index([read])
+  @@index([createdAt])
+}
