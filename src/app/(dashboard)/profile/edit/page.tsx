@@ -29,7 +29,6 @@ export default function EditProfilePage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [profile, setProfile] = useState<PlayerProfile | null>(null);
   const [formData, setFormData] = useState({
     display_name: '',
     bio: '',
@@ -52,7 +51,6 @@ export default function EditProfilePage() {
           throw new Error('Failed to fetch profile');
         }
         const data: PlayerProfile = await response.json();
-        setProfile(data);
         setFormData({
           display_name: data.display_name || '',
           bio: data.bio || '',

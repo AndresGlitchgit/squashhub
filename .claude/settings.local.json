@@ -3,7 +3,11 @@
     "allow": [
       "Bash(git config:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Read(//mnt/c/Users/andre/**)",
+      "Read(//c/Users/andre/squas/$HOME/**)",
+      "Bash(git -C /c/Users/andre/squas remote -v)"
     ]
   }
 }
